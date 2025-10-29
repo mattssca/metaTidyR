@@ -62,8 +62,6 @@ process_column <- function(data = metadata,
       if (is.null(boolean_map)) {
         stop("For boolean type, a boolean_map must be provided.")
       }
-      
-      # Convert to boolean based on the mapping, preserving NA values
       data[[column]] <- ifelse(
         tolower(data[[column]]) %in% tolower(boolean_map$true), 
         TRUE, 
@@ -73,6 +71,9 @@ process_column <- function(data = metadata,
           NA
         )
       )
+    } else if (type == "date") {
+      # Convert to Date type, default format is "%Y-%m-%d"
+      data[[column]] <- as.Date(data[[column]], format = "%Y-%m-%d")
     } else {
       stop("Unsupported type specified.")
     }

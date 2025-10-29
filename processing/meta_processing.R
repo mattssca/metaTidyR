@@ -1,29 +1,29 @@
 #load pacakges
-library(skimr)
-library(janitor)
-library(caret)
-library(dplyr)
-library(tibble)
-library(DataExplorer)
-library(naniar)
-library(stringr)
+#library(skimr)
+#library(janitor)
+#library(caret)
+#library(dplyr)
+#library(tibble)
+#library(DataExplorer)
+#library(naniar)
+#library(stringr)
 
 #set path
-setwd("~/BIOINFORMATICS/metaTidyR/")
+#setwd("../../Desktop/GIT_REPOS/metaTidyR/")
 
 #temporarily increase max.print to a large value
 options(max.print = 1e6) 
 
 #load raw metadata
-load(file = "data/raw/UROSCANSEQMetadata2025_01_16.Rdata")
+#load(file = "../../uroscanseq_analysis/data/metadata/UROSCANSEQMetadata2025_01_16.Rdata")
 
 #create copy of raw meta
 metadata = UROSCANSEQMetadata2025_01_16
 
 #explore dataset
-skimr::skim(metadata)
-DataExplorer::create_report(metadata)
-naniar::vis_miss(metadata)
+#skimr::skim(metadata)
+#DataExplorer::create_report(metadata)
+#naniar::vis_miss(metadata)
 
 #remove leading/trailing spaces and change 'n/a' to real NA
 metadata <- metadata %>%
@@ -32,127 +32,8 @@ metadata <- metadata %>%
   mutate(across(where(is.character), ~na_if(.x, "")))
 
 ######################################## ODD CASES #################################################
-################################## AS PRIMEPATH VARIANTS ###########################################
 
-#Select the columns to combine
-#as pathology
-as_columns <- metadata %>%
-  select(OHE_AS_Variant_SQ:OHE_AS_Variant_Clear)
 
-as_columns <- as_columns %>%
-  mutate(as_variants = apply(., 1, function(row) {
-    present_variants <- names(row)[which(row == 1)]
-    if (length(present_variants) > 0) {
-      tolower(paste(present_variants, collapse = ", "))
-    } else {
-      NA
-    }
-  }))
-
-as_variants = as.data.frame(as_columns$as_variants)
-
-#primepath patology
-prime_path_columns <- metadata %>%
-  select(OHE_PrimPath_Variant_SQ:OHE_PrimPath2022_Variant_Tubular)
-
-prime_path_columns <- prime_path_columns %>%
-  mutate(prime_path_variants = apply(., 1, function(row) {
-    present_variants <- names(row)[which(row == 1)]
-    if (length(present_variants) > 0) {
-      tolower(paste(present_variants, collapse = ", "))
-    } else {
-      NA
-    }
-  }))
-
-prime_path_variants = as.data.frame(prime_path_columns$prime_path_variants)
-
-#add to metadata
-#tmp shift rownames
-metadata <- metadata %>%
-  rownames_to_column(var = "rowname")
-
-as_variants <- as_variants %>%
-  rownames_to_column(var = "rowname")
-
-prime_path_variants <- prime_path_variants %>%
-  rownames_to_column(var = "rowname")
-
-#perform the left join using the "rowname" column
-metadata <- metadata %>%
-  left_join(as_variants, by = "rowname") %>% 
-  rename(as_variants = `as_columns$as_variants`)
-
-metadata <- metadata %>%
-  left_join(prime_path_variants, by = "rowname") %>% 
-  rename(prime_path_variants = `prime_path_columns$prime_path_variants`)
-
-#remove the "rowname" column and restore row names
-metadata <- metadata %>%
-  column_to_rownames(var = "rowname")
-
-####################################### HIST COLUMN ################################################
-#standardize the column
-hist_meta = metadata %>% 
-  select(Multiple_Hist_Subtype) %>% 
-  mutate(hist_sub = str_to_lower(Multiple_Hist_Subtype),
-         hist_sub = str_trim(hist_sub))
-  
-hist_meta <- hist_meta %>%
-  mutate(hist_sub = ifelse(Multiple_Hist_Subtype == "N", "none", hist_sub))
-
-subtypes = c("micropapillary", "nested", "large_nested", "tubular_microcystic", 
-             "plasmacytoid", "sarcomatoid", "lipid_rich", "lymphoepithelioma_like", 
-             "clear_cell_glycogene_rich", "giant_cell", "poorly_differentiated")
-
-# Named vector for mapping
-subtype_map <- c(
-  "micropapillär" = "micropapillary",
-  "mikropapillär" = "micropapillary",
-  "micropapillär + jättecellsmorfologi" = "micropapillary_giant",
-  "micropapillär + skivepitel" = "micropapillary",
-  "mikropapillär & nested" = "micropapillary",
-  "nested" = "nested",
-  "nested variant" = "nested",
-  "large_nested" = "large_nested",
-  "tubulär och skivepitekdifferentiering" = "tubular_microcystic",
-  "tubular_microcystic" = "tubular_microcystic",
-  "plasmacytoid" = "plasmacytoid",
-  "plasmacytoid + sarkomatoid" = "plasmacytoid",
-  "sarkomatoid" = "sarcomatoid",
-  "sarcomatoid" = "sarcomatoid",
-  "lipid_rich" = "lipid_rich",
-  "lymphoepithelioma_like" = "lymphoepithelioma_like",
-  "klarcellig differentiering" = "clear_cell_glycogene_rich",
-  "clear_cell_glycogene_rich" = "clear_cell_glycogene_rich",
-  "giant_cell" = "giant_cell",
-  "pleomorphic giant cell carcinoma" = "giant_cell",
-  "poorly_differentiated" = "poorly_differentiated",
-  "neuroendokrin" = "poorly_differentiated",
-  "neuroendokrin differentiering" = "poorly_differentiated",
-  "storcelllig" = "poorly_differentiated",
-  "småcellig" = "poorly_differentiated",
-  "adenodifferntiering" = "poorly_differentiated",
-  "glandulär differentiering" = "poorly_differentiated",
-  "glandulärdifferentiering" = "poorly_differentiated",
-  "körteldifferentiering" = "poorly_differentiated",
-  "mucinös och signetringcellsdifferentiering" = "poorly_differentiated",
-  "signetringscellkomponent + rhabdoid komponent" = "poorly_differentiated",
-  "flera inkl. småcellig variant" = "poorly_differentiated",
-  "skivepitelcancer" = "poorly_differentiated",
-  "skivepiteldiff" = "poorly_differentiated",
-  "skivepiteldifferentiering" = "poorly_differentiated",
-  "skivepitelmetaplasi" = "poorly_differentiated",
-  "nej" = NA,
-  "n" = NA,
-  "none" = "none",
-  "j" = NA,
-  "m" = NA
-)
-
-hist_meta <- hist_meta %>%
-  mutate(consensus_subtype = subtype_map[hist_sub])
-  
 ###################################### REMOVE COLUMNS ##############################################
 #get all columns
 all_columns = colnames(metadata)
@@ -177,36 +58,26 @@ remove_columns = metadata %>%
                 trialno)
 
 comment_columns = metadata %>% 
-  select(Status, exc0, exc2, exc3, exc4, Flag, Comment)
+  dplyr::select(Status, exc0, exc2, exc3, exc4, Flag, Comment)
 
 extra_seq_columns = metadata %>% 
-  select(Extraherat_Allprep_DNA_RNA_Blood_Mini_kit)
+  dplyr::select(Extraherat_Allprep_DNA_RNA_Blood_Mini_kit)
 
 hist_columns = metadata %>% 
-  select(OHE_AS_Variant_SQ,
-         OHE_AS_Variant_Src,
-         OHE_AS_Variant_NE,
-         OHE_AS_Variant_MP,
-         OHE_AS_Variant_Ade,
-         OHE_AS_Variant_Gland,
-         OHE_AS_Variant_Clear,
-         AS_Variant_Outlier,
-         OHE_PrimPath_Variant_SQ,
-         OHE_PrimPath_Variant_SQmetaplasia,
-         OHE_PrimPath2022_Variant_UC_with_squamous_differentiation,
-         OHE_PrimPath2022_Variant_Sarcomatoid,
-         OHE_PrimPath_Variant_NE,
-         OHE_PrimPath_Variant_SmallCell,
-         OHE_PrimPath2022_Variant_Neuroendocrine,
-         OHE_PrimPath2022_Variant_Micropapillary,
-         OHE_PrimPath_Variant_Ade,
-         OHE_PrimPath2022_Variant_UC_with_glandular_differentiation,
-         OHE_PrimPath2022_Variant_Clear_cell,
-         OHE_PrimPath2022_Variant_Plasmacytoid,
-         OHE_PrimPath2022_Variant_Giant_cell,
-         OHE_PrimPath2022_Variant_Nested,
-         OHE_PrimPath2022_Variant_Tubular, 
-         Multiple_Hist_Subtype)
+  dplyr::select(AS_Variant_Outlier,
+                OHE_AS_Variant_SQ,
+                OHE_AS_Variant_Src,
+                OHE_AS_Variant_NE,
+                OHE_AS_Variant_MP,
+                OHE_AS_Variant_Ade,
+                OHE_AS_Variant_Gland,
+                OHE_AS_Variant_Clear,
+                OHE_PrimPath_Variant_SQ,
+                OHE_PrimPath_Variant_SQmetaplasia,
+                OHE_PrimPath_Variant_NE,
+                OHE_PrimPath_Variant_SmallCell,
+                OHE_PrimPath_Variant_Ade,
+                Multiple_Hist_Subtype)
 
 #subtract these columns from the main metadata
 metadata <- metadata[, setdiff(names(metadata), names(remove_columns))]
@@ -248,3 +119,25 @@ metadata = process_column(column = "RNA_260_230", new_name = "rna_260_230", doma
 metadata = process_column(column = "Dilution", new_name = "dilution", domain = "qc_fields") %>% mutate(dilution = recode(dilution, "Clarity" = "clarity", "Intorkad" = "dried", "ospätt" = "non_diluted", "Stor bit" = "big_sample"))
 metadata = process_column(column = "RNA_HS_Qubit_ng_ul", new_name = "rna_hs_qubit_ng_ul", domain = "qc_fields", type = "double") 
 metadata = process_column(column = "RIN_value", new_name = "rin_value", domain = "qc_fields", type = "double") 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_UC_with_squamous_differentiation", new_name = "primpath_sq_diff", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Sarcomatoid", new_name = "primpath_sarcomatoid", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Neuroendocrine", new_name = "primpath_neuroendocrine", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Micropapillary", new_name = "primpath_micropapilary", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_UC_with_glandular_differentiation", new_name = "primpath_galnd_diff", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Clear_cell", new_name = "primpath_clear_cell", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Plasmacytoid", new_name = "primpath_plasmacytoid", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Giant_cell", new_name = "primpath_giant_cell", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Nested", new_name = "primpath_nested", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "OHE_PrimPath2022_Variant_Tubular", new_name = "primpath_tubular", domain = "variant_histology", type = "boolean", boolean_map = list(true = 1, false = 0)) 
+metadata = process_column(column = "Sample_date", new_name = "sample_date", domain = "clinical_data", type = "date") 
+metadata = process_column(column = "Age", new_name = "age", domain = "clinical_data", type = "numeric") 
+metadata = process_column(column = "EAU_Risk_Use", new_name = "is_in_set_eau_risk", domain = "cohort_info", type = "boolean", boolean_map = list(true = "Yes", false = "")) %>% mutate(is_in_set_eau_risk = tidyr::replace_na(is_in_set_eau_risk, FALSE))
+metadata = process_column(column = "EAU_Risk_Over70", new_name = "eau_risk_is_over_70", domain = "clinical_data", type = "boolean", boolean_map = list(true = "Yes", false = "No"))
+metadata = process_column(column = "EAU_Risk_Tumor_Status", new_name = "eau_risk_tumor_status", domain = "clinical_data", type = "factor", rename_factors = c("Primary" = "primary", "Recurrence" = "recurrence"), factor_order = c("primary", "recurrence"))
+metadata = process_column(column = "EAU_Risk_Number_of_Tumors", new_name = "eau_risk_n_tumors", domain = "clinical_data", type = "factor", rename_factors = c("Multiple" = "multiple", "Single" = "single"), factor_order = c("single", "multiple"))
+metadata = process_column(column = "EAU_Risk_Maximum_Tumor_Diameter", new_name = "eau_risk_tumor_size", domain = "clinical_data", type = "factor", rename_factors = c("below_3cm" = "below_3cm", "above_3cm" = "above_3cm"), factor_order = c("below_3cm", "above_3cm"))
+metadata = process_column(column = "EAU_Risk_Stage", new_name = "eau_risk_tumor_stage", domain = "clinical_data", type = "factor", rename_factors = c("Ta" = "Ta", "T1" = "T1"), factor_order = c("Ta", "T1"))
+metadata = process_column(column = "EAU_Risk_Concomitant_CIS", new_name = "eau_risk_is_cis", domain = "clinical_data", type = "boolean", boolean_map = list(true = "Yes", false = "No"))
+metadata = process_column(column = "EAU_Risk_WHO_Grade_1973", new_name = "eau_risk_grade_who_1973", domain = "clinical_data", type = "factor", rename_factors = c("1" = "G1", "2" = "G2", "3" = "G3"), factor_order = c("G1", "G2", "G3"))
+metadata = process_column(column = "EAU_Risk_VariantHist_MP_Plasma_Src_NE", new_name = "eau_risk_variant_hist", domain = "clinical_data", type = "factor", rename_factors = c("Gland" = "gland", "MP" = "mp", "NE" = "ne", "Plasma" = "plasma"), factor_order = c("gland", "mp", "ne", "plasma"))
+
